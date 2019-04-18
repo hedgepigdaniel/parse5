@@ -149,3 +149,36 @@ exports['Regression - SAX - Should not accept binary input (GH-269)'] = () => {
 
     assert.throws(() => stream.write(buf), TypeError);
 };
+
+exports['Regression - SAX - script tag with >= 65536 characters'] = function(done) {
+    const parser = new SAXParser();
+    const writable = new WritableStreamStub();
+    let handlerCallCount = 0;
+
+    const handler = function() {
+        handlerCallCount++;
+
+        if (handlerCallCount === 10) {
+            parser.stop();
+        }
+    };
+
+    fs.createReadStream(path.join(__dirname, '../../../test/data/huge-script/huge-script.html'), 'utf8')
+        .pipe(parser)
+        .pipe(writable);
+
+    parser.on('startTag', handler);
+    parser.on('endTag', handler);
+    parser.on('doctype', handler);
+    parser.on('comment', handler);
+    parser.on('text', handler);
+
+    writable.once('finish', () => {
+        const expected = fs
+            .readFileSync(path.join(__dirname, '../../../test/data/huge-script/huge-script.html'))
+            .toString();
+
+        assert.strictEqual(writable.writtenData, expected);
+        done();
+    });
+};
